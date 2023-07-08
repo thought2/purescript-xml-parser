@@ -1,8 +1,9 @@
 module XmlParser
-  ( XmlNode(..)
-  , Element(..)
+  ( Element(..)
   , XmlAttribute(..)
+  , XmlNode(..)
   , parseXmlNode
+  , parseXmlNodes
   ) where
 
 import Prelude
@@ -52,7 +53,7 @@ attributeParser = do
 openingParser :: Parser Element
 openingParser = do
   _ <- string "<"
-  
+
   name :: String <- regex "[^/> ]+"
 
   attributes :: List XmlAttribute <-
@@ -103,6 +104,10 @@ nodeParser = defer \_ ->
     <|>
       elementParser
 
-parseXmlNode :: String -> Either ParseError (List XmlNode)
-parseXmlNode input =
+parseXmlNodes :: String -> Either ParseError (List XmlNode)
+parseXmlNodes input =
   runParser (many nodeParser) input
+
+parseXmlNode :: String -> Either ParseError XmlNode
+parseXmlNode input =
+  runParser nodeParser input
