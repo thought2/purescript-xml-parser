@@ -7,8 +7,7 @@ module XmlParser
   , parseXmlDocument
   , parseXmlNode
   , parseXmlNodes
-  )
-  where
+  ) where
 
 import Prelude
 
@@ -19,7 +18,7 @@ import Data.Either (Either)
 import Data.Generic.Rep (class Generic)
 import Data.List (List)
 import Data.List as List
-import Data.Maybe (Maybe)
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Show.Generic (genericShow)
 import Data.String.CodeUnits (fromCharArray)
 import StringParser (ParseError, Parser, anyChar, optionMaybe, regex, runParser, skipSpaces, string, try, whiteSpace)
@@ -131,10 +130,17 @@ metaParser = do
   _ <- whiteSpace *> string "?>"
   pure $ { version, encoding, standalone }
 
+defaultMeta :: XmlMeta
+defaultMeta =
+  { version: Nothing
+  , encoding: Nothing
+  , standalone: Nothing
+  }
+
 documentParser :: Parser XmlDocument
 documentParser = do
   skipSpaces
-  meta :: XmlMeta <- metaParser
+  meta :: Maybe XmlMeta <- optionMaybe metaParser
 
   commentsBeforeRoot :: List String <- whiteSpace *> many commentParser
 
@@ -143,7 +149,7 @@ documentParser = do
   commentsAfterRoot :: List String <- whiteSpace *> many commentParser
 
   pure $
-    { meta
+    { meta: fromMaybe defaultMeta meta
     , commentsBeforeRoot
     , root
     , commentsAfterRoot
