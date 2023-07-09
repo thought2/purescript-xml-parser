@@ -1,11 +1,14 @@
 module XmlParser
   ( Element(..)
   , XmlAttribute(..)
+  , XmlDocument
+  , XmlMeta
   , XmlNode(..)
   , parseXmlDocument
   , parseXmlNode
   , parseXmlNodes
-  ) where
+  )
+  where
 
 import Prelude
 
