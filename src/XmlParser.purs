@@ -2,6 +2,7 @@ module XmlParser
   ( Element(..)
   , XmlAttribute(..)
   , XmlNode(..)
+  , parseXmlDocument
   , parseXmlNode
   , parseXmlNodes
   ) where
@@ -15,10 +16,24 @@ import Data.Either (Either)
 import Data.Generic.Rep (class Generic)
 import Data.List (List)
 import Data.List as List
+import Data.Maybe (Maybe)
 import Data.Show.Generic (genericShow)
 import Data.String.CodeUnits (fromCharArray)
-import StringParser (anyChar, regex, skipSpaces, string, whiteSpace, Parser, ParseError, runParser, try)
+import StringParser (ParseError, Parser, anyChar, optionMaybe, regex, runParser, skipSpaces, string, try, whiteSpace)
 import StringParser.Combinators (many, manyTill, option, optional, sepEndBy)
+
+type XmlDocument =
+  { meta :: XmlMeta
+  , commentsBeforeRoot :: List String
+  , root :: XmlNode
+  , commentsAfterRoot :: List String
+  }
+
+type XmlMeta =
+  { version :: Maybe String
+  , encoding :: Maybe String
+  , standalone :: Maybe String
+  }
 
 data XmlNode
   = XmlElement Element
@@ -91,18 +106,45 @@ elementParser = defer \_ -> do
 textParser :: Parser XmlNode
 textParser = XmlText <$> regex "[^<]+"
 
-commentParser :: Parser XmlNode
+commentParser :: Parser String
 commentParser = do
-  skipSpaces
   comment :: List Char <- string "<!--" *> manyTill anyChar (string "-->")
-  pure $ XmlComment $ charListToString comment
+  skipSpaces
+  pure $ charListToString comment
 
 nodeParser :: Parser XmlNode
 nodeParser = defer \_ ->
   try textParser
-    <|> try commentParser
+    <|> try (XmlComment <$> commentParser)
     <|>
       elementParser
+
+metaParser :: Parser XmlMeta
+metaParser = do
+  _ <- string "<?xml"
+  version :: Maybe String <- whiteSpace *> optionMaybe (string "version=\"" *> regex "[^\"]*" <* string "\"")
+  encoding :: Maybe String <- whiteSpace *> optionMaybe (string "encoding=\"" *> regex "[^\"]*" <* string "\"")
+  standalone :: Maybe String <- whiteSpace *> optionMaybe (whiteSpace *> string "standalone=\"" *> regex "[^\"]*" <* string "\"")
+  _ <- whiteSpace *> string "?>"
+  pure $ { version, encoding, standalone }
+
+documentParser :: Parser XmlDocument
+documentParser = do
+  skipSpaces
+  meta :: XmlMeta <- metaParser
+
+  commentsBeforeRoot :: List String <- whiteSpace *> many commentParser
+
+  root :: XmlNode <- elementParser
+
+  commentsAfterRoot :: List String <- whiteSpace *> many commentParser
+
+  pure $
+    { meta
+    , commentsBeforeRoot
+    , root
+    , commentsAfterRoot
+    }
 
 parseXmlNodes :: String -> Either ParseError (List XmlNode)
 parseXmlNodes input =
@@ -111,3 +153,7 @@ parseXmlNodes input =
 parseXmlNode :: String -> Either ParseError XmlNode
 parseXmlNode input =
   runParser nodeParser input
+
+parseXmlDocument :: String -> Either ParseError XmlDocument
+parseXmlDocument input =
+  runParser documentParser input
